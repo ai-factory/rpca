@@ -1,6 +1,7 @@
 package RPCA
 
 import (
+	"fmt"
 	"github.com/gonum/matrix"
 	"github.com/gonum/matrix/mat64"
 	"github.com/gonum/stat"
@@ -11,6 +12,7 @@ const (
 	MAX_ITERS int     = 1000
 	LPENALTY  float64 = 1
 	SPENALTY  float64 = 1.4
+	SCALE     bool    = true
 )
 
 type DecomposedMatrix struct {
@@ -22,11 +24,40 @@ type RPCAComponent struct {
 	component *mat64.Dense
 	norm      float64
 }
+type RPCAable interface {
+	mat64.Mutable
+	mat64.RawMatrixer
+	Scale(f float64, a mat64.Matrix)
+}
 
-func ComputeRPCA(mat mat64.Matrix) DecomposedMatrix {
+func buildMatrix(series []float64, frequency int) RPCAable {
+	lenSeries := len(series)
+	if lenSeries%frequency != 0 {
+		panic("Time series not evenly divisible by frequency")
+	}
+	rows, cols := frequency, lenSeries/frequency
+	data := make([]float64, lenSeries)
+	for i, v := range series {
+		row, col := i%rows, i/rows
+		j := row*cols + col
+		data[j] = v
+	}
+	return mat64.NewDense(rows, cols, data)
+}
+
+func ComputeRPCA(series []float64, frequency int) DecomposedMatrix {
+
+	mat := buildMatrix(series, frequency)
 	rows, cols := mat.Dims()
+
+	if SCALE {
+		mean, stdDev := stat.MeanStdDev(mat.RawMatrix().Data, nil)
+		add(mat, -mean)
+		mat.Scale(1.0/stdDev, mat)
+	}
+
 	// Get initial mu, which is our convergence rate
-	mu := float64(cols*rows) / (4.0 * mat64.Norm(mat, 1))
+	mu := float64(cols*rows) / (4.0 * l1Norm(mat))
 	l := mat64.NewDense(rows, cols, nil)
 	s := mat64.NewDense(rows, cols, nil)
 	e := mat64.NewDense(rows, cols, nil)
@@ -37,6 +68,15 @@ func ComputeRPCA(mat mat64.Matrix) DecomposedMatrix {
 
 	total := 1e-8 * previousObjective
 	difference := 2 * total
+
+	println("Rows x cols:", rows, cols)
+	println("Objective initial:", objective)
+	println("Total initial:", total)
+	println("Diff initial:", difference)
+	println("l1norm:", l1Norm(mat))
+	println("Mu initial:", mu)
+	fa := mat64.Formatted(mat, mat64.Prefix("    "))
+	fmt.Printf("Matrix:\n%v\n\n", fa)
 
 	iter := 0
 	converged := false
@@ -57,6 +97,8 @@ func ComputeRPCA(mat mat64.Matrix) DecomposedMatrix {
 		previousObjective = objective
 
 		mu = computeDynamicMu(e)
+		//TODO These are all wrong
+		println("L S E norms:", lComp.norm, sComp.norm, eComp.norm)
 		println("Objective function: ", previousObjective, " on previous iteration ", iter)
 		println("Objective function: ", objective, " on iteration ", iter-1)
 		println("Mu on iteration ", iter, ": ", mu)
@@ -80,7 +122,7 @@ func computeS(mat, l mat64.Matrix, penalty float64) RPCAComponent {
 	residual := mat64.NewDense(r, c, nil)
 	residual.Sub(mat, l)
 	s := softThresholdMat(residual, penalty)
-	norm := mat64.Norm(s, 1) * penalty
+	norm := l1Norm(s) * penalty
 	return RPCAComponent{s.(*mat64.Dense), norm}
 }
 
@@ -118,7 +160,7 @@ func computeE(mat, l, s mat64.Matrix) RPCAComponent {
 }
 
 //TODO Make these one function
-func softThresholdMat(mat mat64.Matrix, penalty float64) mat64.Matrix {
+func softThresholdMat(mat mat64.Matrix, penalty float64) RPCAable {
 	r, c := mat.Dims()
 	thresholdedMat := mat64.NewDense(r, c, nil)
 	penalize := func(i, j int, v float64) float64 {
@@ -156,10 +198,27 @@ func setDiag(mat mat64.Mutable, d []float64) {
 	}
 }
 
+func add(mat mat64.Mutable, addend float64) {
+	r, c := mat.Dims()
+	for i := 0; i < r; i++ {
+		for j := 0; j < c; j++ {
+			mat.Set(i, j, mat.At(i, j)+addend)
+		}
+	}
+}
+
 func sum(vals []float64) float64 {
 	sum := 0.0
 	for _, v := range vals {
 		sum += v
+	}
+	return sum
+}
+
+func l1Norm(mat mat64.RawMatrixer) float64 {
+	sum := 0.0
+	for _, v := range mat.RawMatrix().Data {
+		sum += math.Abs(v)
 	}
 	return sum
 }
