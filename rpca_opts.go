@@ -1,4 +1,4 @@
-package RPCA
+package rpca
 
 type RPCAConfig struct {
 	frequency int

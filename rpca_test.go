@@ -1,4 +1,4 @@
-package RPCA
+package rpca
 
 import (
 	"fmt"
@@ -27,7 +27,9 @@ func TestComputeRPCA(t *testing.T) {
 				test.description, fmtMat(test.expected.S), fmtMat(observed.S))
 		}
 		if !mat64.EqualApprox(observed.E, test.expected.E, 0.01) {
-			t.Errorf("Failed matching error matrix (E) with " + test.description)
+			t.Errorf("Failed matching error matrix (E) with %v.\n"+
+				"Expected:\n%v\n\nbut got\n\n%v",
+				test.description, fmtMat(test.expected.E), fmtMat(observed.E))
 		}
 		if observed.converged != test.expected.converged {
 			t.Errorf("Failed to match convergence with %v. Expected %v but got %v",
@@ -40,5 +42,9 @@ func TestComputeRPCA(t *testing.T) {
 	}
 }
 
-func TestFindAnomalies(t *testing.T) {
+func BenchmarkComputeRPCA(b *testing.B) {
+	testCase := rpcaTestCases[2]
+	for i := 0; i < b.N; i++ {
+		computeRPCA(testCase.timeSeries, testCase.options)
+	}
 }

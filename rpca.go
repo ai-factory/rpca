@@ -1,4 +1,4 @@
-package RPCA
+package rpca
 
 import (
 	"fmt"
@@ -71,9 +71,10 @@ type rPCAable interface {
 
 func computeRPCA(mat rPCAable, conf *RPCAConfig) decomposedMatrix {
 	rows, cols := mat.Dims()
+	var mean, stdDev float64
 
 	if conf.scale {
-		mean, stdDev := stat.MeanStdDev(mat.RawMatrix().Data, nil)
+		mean, stdDev = stat.MeanStdDev(mat.RawMatrix().Data, nil)
 		add(mat, -mean)
 		mat.Scale(1.0/stdDev, mat)
 	}
@@ -137,9 +138,14 @@ func computeRPCA(mat rPCAable, conf *RPCAConfig) decomposedMatrix {
 	if iter < MAX_ITERS {
 		converged = true
 	}
-	if conf.verbose {
-		fa := mat64.Formatted(s)
-		fmt.Printf("S Matrix:\n%v\n\n", fa)
+	if conf.scale {
+		if conf.verbose {
+			println("Mean, StdDev: ", mean, stdDev)
+		}
+		l.Scale(stdDev, l)
+		add(l, mean)
+		s.Scale(stdDev, s)
+		e.Scale(stdDev, e)
 	}
 	return decomposedMatrix{l, s, e, converged, iter}
 }
@@ -213,62 +219,4 @@ func softThresholdVec(v []float64, penalty float64) []float64 {
 		thresholded = append(thresholded, penalize(v))
 	}
 	return thresholded
-}
-
-func signum(f float64) float64 {
-	switch {
-	case f < 0:
-		return -1
-	case f == 0:
-		return 0
-	default:
-		return 1
-	}
-}
-
-func setDiag(mat mat64.Mutable, d []float64) {
-	for i, v := range d {
-		mat.Set(i, i, v)
-	}
-}
-
-func add(mat mat64.Mutable, addend float64) {
-	r, c := mat.Dims()
-	for i := 0; i < r; i++ {
-		for j := 0; j < c; j++ {
-			mat.Set(i, j, mat.At(i, j)+addend)
-		}
-	}
-}
-
-func sum(vals []float64) float64 {
-	sum := 0.0
-	for _, v := range vals {
-		sum += v
-	}
-	return sum
-}
-
-func l1Norm(mat mat64.RawMatrixer) float64 {
-	sum := 0.0
-	for _, v := range mat.RawMatrix().Data {
-		sum += math.Abs(v)
-	}
-	return sum
-}
-
-//TODO Just do this with a transpose
-func buildMatrix(series []float64, frequency int) rPCAable {
-	lenSeries := len(series)
-	if lenSeries%frequency != 0 {
-		panic("Time series not evenly divisible by frequency")
-	}
-	rows, cols := frequency, lenSeries/frequency
-	data := make([]float64, lenSeries)
-	for i, v := range series {
-		row, col := i%rows, i/rows
-		j := row*cols + col
-		data[j] = v
-	}
-	return mat64.NewDense(rows, cols, data)
 }
