@@ -8,49 +8,71 @@ import (
 	"math"
 )
 
-const (
-	MAX_ITERS int     = 1000
-	LPENALTY  float64 = 1
-	SPENALTY  float64 = 1.4
-	SCALE     bool    = true
-)
+const MAX_ITERS int = 1000
 
-type DecomposedMatrix struct {
-	L, S, E    mat64.Matrix
+type Anomalies struct {
+	positions []bool
+	values    []float64
+}
+
+func FindAnomalies(series []float64, options ...func(*RPCAConfig) error) Anomalies {
+	conf := RPCAConfig{
+		frequency: 7,
+		autodiff:  true,
+		forcediff: false,
+		scale:     true,
+		lPenalty:  1.0,
+		sPenalty:  1.4,
+		verbose:   false,
+	}
+
+	// Apply because we need to know the frequency
+	for _, option := range options {
+		option(&conf)
+	}
+
+	floatFreq := float64(conf.frequency)
+	conf.sPenalty = 1.4 / math.Sqrt(math.Max(floatFreq, float64(len(series))/floatFreq))
+
+	// Apply again in case user provided S penalty
+	for _, option := range options {
+		option(&conf)
+	}
+
+	mat := buildMatrix(series, conf.frequency)
+	decomposed := computeRPCA(mat, &conf)
+	return decomposedToAnomalies(&decomposed)
+}
+
+func decomposedToAnomalies(decomp *decomposedMatrix) Anomalies {
+	anomalyMat := mat64.DenseCopyOf(decomp.S.T())
+	anomalies := anomalyMat.RawMatrix().Data
+	positions := make([]bool, len(anomalies))
+	for i, v := range anomalies {
+		positions[i] = v != 0
+	}
+	return Anomalies{positions, anomalies}
+}
+
+type decomposedMatrix struct {
+	L, S, E    rPCAable
 	converged  bool
 	iterations int
 }
-type RPCAComponent struct {
-	component *mat64.Dense
-	norm      float64
+type rPCAComponent struct {
+	matrix *mat64.Dense
+	norm   float64
 }
-type RPCAable interface {
+type rPCAable interface {
 	mat64.Mutable
 	mat64.RawMatrixer
 	Scale(f float64, a mat64.Matrix)
 }
 
-func buildMatrix(series []float64, frequency int) RPCAable {
-	lenSeries := len(series)
-	if lenSeries%frequency != 0 {
-		panic("Time series not evenly divisible by frequency")
-	}
-	rows, cols := frequency, lenSeries/frequency
-	data := make([]float64, lenSeries)
-	for i, v := range series {
-		row, col := i%rows, i/rows
-		j := row*cols + col
-		data[j] = v
-	}
-	return mat64.NewDense(rows, cols, data)
-}
-
-func ComputeRPCA(series []float64, frequency int) DecomposedMatrix {
-
-	mat := buildMatrix(series, frequency)
+func computeRPCA(mat rPCAable, conf *RPCAConfig) decomposedMatrix {
 	rows, cols := mat.Dims()
 
-	if SCALE {
+	if conf.scale {
 		mean, stdDev := stat.MeanStdDev(mat.RawMatrix().Data, nil)
 		add(mat, -mean)
 		mat.Scale(1.0/stdDev, mat)
@@ -69,45 +91,57 @@ func ComputeRPCA(series []float64, frequency int) DecomposedMatrix {
 	total := 1e-8 * previousObjective
 	difference := 2 * total
 
-	println("Rows x cols:", rows, cols)
-	println("Objective initial:", objective)
-	println("Total initial:", total)
-	println("Diff initial:", difference)
-	println("l1norm:", l1Norm(mat))
-	println("Mu initial:", mu)
-	fa := mat64.Formatted(mat, mat64.Prefix("    "))
-	fmt.Printf("Matrix:\n%v\n\n", fa)
+	if conf.verbose {
+		println("Rows x cols:", rows, cols)
+		println("Objective initial:", objective)
+		println("Total initial:", total)
+		println("Diff initial:", difference)
+		println("Mu initial:", mu)
+		println("l1norm:", l1Norm(mat))
+		fa := mat64.Formatted(mat)
+		fmt.Printf("Matrix:\n%v\n\n", fa)
+	}
 
 	iter := 0
 	converged := false
 
 	for difference > total && iter < MAX_ITERS {
-		thisLPenalty := mu * LPENALTY
-		thisSPenalty := mu * SPENALTY
+		thisLPenalty := mu * conf.lPenalty
+		thisSPenalty := mu * conf.sPenalty
+
+		if conf.verbose {
+			println("S penalty:", thisSPenalty)
+			println("L penalty:", thisLPenalty)
+		}
 
 		sComp := computeS(mat, l, thisSPenalty)
-		s = sComp.component
+		s = sComp.matrix
 		lComp := computeL(mat, s, thisLPenalty)
-		l = lComp.component
+		l = lComp.matrix
 		eComp := computeE(mat, l, s)
-		e = eComp.component
+		e = eComp.matrix
 
 		objective = computeObjective(lComp.norm, sComp.norm, eComp.norm)
 		difference = math.Abs(previousObjective - objective)
 		previousObjective = objective
 
 		mu = computeDynamicMu(e)
-		//TODO These are all wrong
-		println("L S E norms:", lComp.norm, sComp.norm, eComp.norm)
-		println("Objective function: ", previousObjective, " on previous iteration ", iter)
-		println("Objective function: ", objective, " on iteration ", iter-1)
-		println("Mu on iteration ", iter, ": ", mu)
+		if conf.verbose {
+			println("L S E norms:", lComp.norm, sComp.norm, eComp.norm)
+			println("Objective function: ", previousObjective, " on previous iteration ", iter)
+			println("Objective function: ", objective, " on iteration ", iter-1)
+			println("Mu on iteration ", iter, ": ", mu)
+		}
 		iter++
 	}
 	if iter < MAX_ITERS {
 		converged = true
 	}
-	return DecomposedMatrix{l, s, e, converged, iter}
+	if conf.verbose {
+		fa := mat64.Formatted(s)
+		fmt.Printf("S Matrix:\n%v\n\n", fa)
+	}
+	return decomposedMatrix{l, s, e, converged, iter}
 }
 
 func computeDynamicMu(e *mat64.Dense) float64 {
@@ -117,20 +151,20 @@ func computeDynamicMu(e *mat64.Dense) float64 {
 	return math.Max(0.01, mu)
 }
 
-func computeS(mat, l mat64.Matrix, penalty float64) RPCAComponent {
+func computeS(mat, l mat64.Matrix, penalty float64) rPCAComponent {
 	r, c := mat.Dims()
 	residual := mat64.NewDense(r, c, nil)
 	residual.Sub(mat, l)
 	s := softThresholdMat(residual, penalty)
 	norm := l1Norm(s) * penalty
-	return RPCAComponent{s.(*mat64.Dense), norm}
+	return rPCAComponent{s.(*mat64.Dense), norm}
 }
 
 func computeObjective(lNorm, sNorm, eNorm float64) float64 {
 	return (0.5 * eNorm) + lNorm + sNorm
 }
 
-func computeL(mat, s mat64.Matrix, penalty float64) RPCAComponent {
+func computeL(mat, s mat64.Matrix, penalty float64) rPCAComponent {
 	r, c := mat.Dims()
 	var svd mat64.SVD
 	l := mat64.NewDense(r, c, nil)
@@ -148,19 +182,19 @@ func computeL(mat, s mat64.Matrix, penalty float64) RPCAComponent {
 	vT := v.T()
 	l.Mul(u, penalizedDiag)
 	l.Mul(l, vT)
-	return RPCAComponent{l, mat64.Sum(penalizedDiag) * penalty}
+	return rPCAComponent{l, mat64.Sum(penalizedDiag) * penalty}
 }
 
-func computeE(mat, l, s mat64.Matrix) RPCAComponent {
+func computeE(mat, l, s mat64.Matrix) rPCAComponent {
 	r, c := mat.Dims()
 	e := mat64.NewDense(r, c, nil)
 	e.Sub(mat, l)
 	e.Sub(e, s)
-	return RPCAComponent{e, math.Pow(mat64.Norm(e, 2), 2)}
+	return rPCAComponent{e, math.Pow(mat64.Norm(e, 2), 2)}
 }
 
 //TODO Make these one function
-func softThresholdMat(mat mat64.Matrix, penalty float64) RPCAable {
+func softThresholdMat(mat mat64.Matrix, penalty float64) rPCAable {
 	r, c := mat.Dims()
 	thresholdedMat := mat64.NewDense(r, c, nil)
 	penalize := func(i, j int, v float64) float64 {
@@ -221,4 +255,20 @@ func l1Norm(mat mat64.RawMatrixer) float64 {
 		sum += math.Abs(v)
 	}
 	return sum
+}
+
+//TODO Just do this with a transpose
+func buildMatrix(series []float64, frequency int) rPCAable {
+	lenSeries := len(series)
+	if lenSeries%frequency != 0 {
+		panic("Time series not evenly divisible by frequency")
+	}
+	rows, cols := frequency, lenSeries/frequency
+	data := make([]float64, lenSeries)
+	for i, v := range series {
+		row, col := i%rows, i/rows
+		j := row*cols + col
+		data[j] = v
+	}
+	return mat64.NewDense(rows, cols, data)
 }

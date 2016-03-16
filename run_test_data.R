@@ -1,5 +1,5 @@
 library(devtools)
-install_git(url="/home/jclark/projects/server_data_analysis/Surus", subdir="resources/R/RAD")
+install_git(url="/home/jclark/projects/traffic_analysis/Surus", subdir="resources/R/RAD")
 library(RAD)
 data <- c(7714, 6614, 5860, 5039, 3431, 4531, 6063, 5692, 5715, 5951, 5373, 3704,
          4332, 6011, 5898, 5215, 5454, 4568, 3502, 4460, 6740, 6152, 5678, 5187,
