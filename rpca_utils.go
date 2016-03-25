@@ -47,9 +47,11 @@ func l1Norm(mat mat64.RawMatrixer) float64 {
 	return sum
 }
 
-//TODO Just do this with a transpose
 func buildMatrix(series []float64, frequency int) rPCAable {
 	lenSeries := len(series)
+	if frequency <= 0 {
+		panic("Frequency less than or equal to zero")
+	}
 	if lenSeries%frequency != 0 {
 		panic("Time series not evenly divisible by frequency")
 	}
