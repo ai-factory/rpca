@@ -11,8 +11,8 @@ import (
 const MAX_ITERS int = 1000
 
 type Anomalies struct {
-	positions []bool
-	values    []float64
+	Positions []bool
+	Values    []float64
 }
 
 func FindAnomalies(series []float64, options ...func(*RPCAConfig) error) Anomalies {
