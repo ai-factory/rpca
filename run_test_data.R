@@ -1,5 +1,5 @@
 library(devtools)
-install_git(url="/home/jclark/projects/traffic_analysis/Surus", subdir="resources/R/RAD")
+install_local(path="/home/jclark/projects/traffic_analysis/Surus", subdir="resources/R/RAD")
 library(RAD)
 data <- c(7714, 6614, 5860, 5039, 3431, 4531, 6063, 5692, 5715, 5951, 5373, 3704,
          4332, 6011, 5898, 5215, 5454, 4568, 3502, 4460, 6740, 6152, 5678, 5187,
@@ -14,4 +14,4 @@ data <- c(7714, 6614, 5860, 5039, 3431, 4531, 6063, 5692, 5715, 5951, 5373, 3704
          4743, 5563, 4724, 3124, 4500, 5697, 5003, 4644, 5802, 4210, 3347, 3546,
          4633, 4636, 4607, 4388, 3812, 2810, 2969, 4359)
 #anoms <- AnomalyDetection.rpca(data, verbose=TRUE, autodiff=FALSE, scale=FALSE)
-anoms <- AnomalyDetection.rpca(data, verbose=TRUE, autodiff=FALSE)
+anoms <- AnomalyDetection.rpca(data, verbose=TRUE, autodiff=TRUE, scale=TRUE)

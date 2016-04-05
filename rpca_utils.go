@@ -58,3 +58,22 @@ func buildMatrix(series []float64, frequency int) rPCAable {
 	rows, cols := frequency, lenSeries/frequency
 	return mat64.DenseCopyOf(mat64.NewDense(cols, rows, series).T())
 }
+
+func matrixData(mat mat64.Matrix) []float64 {
+	r, c := mat.Dims()
+	data := make([]float64, r*c)
+	for j := 0; j < c; j++ {
+		for i := 0; i < r; i++ {
+			data[i+j*r] = mat.At(i, j)
+		}
+	}
+	return data
+}
+
+func diff(x []float64) []float64 {
+	y := make([]float64, len(x)-1)
+	for i := 0; i < len(x)-1; i++ {
+		y[i] = x[i+1] - x[i]
+	}
+	return y
+}

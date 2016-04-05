@@ -1,10 +1,12 @@
 package rpca
 
 import (
-	"fmt"
+	"github.com/berkmancenter/adf"
 	"github.com/gonum/matrix"
 	"github.com/gonum/matrix/mat64"
 	"github.com/gonum/stat"
+
+	"fmt"
 	"math"
 )
 
@@ -70,11 +72,27 @@ type rPCAable interface {
 }
 
 func computeRPCA(mat rPCAable, conf *RPCAConfig) decomposedMatrix {
-	rows, cols := mat.Dims()
 	var mean, stdDev float64
+	rows, cols := mat.Dims()
+	needsDiff := false
+	adf := adf.New(mat.RawMatrix().Data, 0, -1)
+
+	if conf.autodiff {
+		adf.Run()
+		needsDiff = !adf.IsStationary()
+	}
+
+	if needsDiff || conf.forcediff {
+		diffed := diff(matrixData(mat))
+		diffed = append([]float64{0}, diffed...)
+		mat = buildMatrix(diffed, conf.frequency)
+	}
 
 	if conf.scale {
 		mean, stdDev = stat.MeanStdDev(mat.RawMatrix().Data, nil)
+		if conf.verbose {
+			println("Mean, StdDev: ", mean, stdDev)
+		}
 		add(mat, -mean)
 		mat.Scale(1.0/stdDev, mat)
 	}
@@ -99,8 +117,7 @@ func computeRPCA(mat rPCAable, conf *RPCAConfig) decomposedMatrix {
 		println("Diff initial:", difference)
 		println("Mu initial:", mu)
 		println("l1norm:", l1Norm(mat))
-		fa := mat64.Formatted(mat)
-		fmt.Printf("Matrix:\n%v\n\n", fa)
+		fmt.Printf("Matrix:\n%v\n\n", mat64.Formatted(mat))
 	}
 
 	iter := 0

@@ -12,7 +12,6 @@ type rpcaTestCase struct {
 
 var rpcaTestCases = []rpcaTestCase{
 	{
-		skip:        true,
 		description: "auto diff and scaling",
 		timeSeries: buildMatrix([]float64{
 			7714, 6614, 5860, 5039, 3431, 4531, 6063, 5692, 5715, 5951, 5373, 3704,
@@ -34,7 +33,7 @@ var rpcaTestCases = []rpcaTestCase{
 			scale:     true,
 			lPenalty:  1.0,
 			sPenalty:  1.4,
-			verbose:   false,
+			verbose:   true,
 		},
 		expected: decomposedMatrix{
 			L: mat64.NewDense(7, 20, []float64{
@@ -95,6 +94,7 @@ var rpcaTestCases = []rpcaTestCase{
 	},
 	{
 		description: "no diff and no scaling",
+		skip:        true,
 		timeSeries: buildMatrix([]float64{
 			7714, 6614, 5860, 5039, 3431, 4531, 6063, 5692, 5715, 5951, 5373, 3704,
 			4332, 6011, 5898, 5215, 5454, 4568, 3502, 4460, 6740, 6152, 5678, 5187,
@@ -206,6 +206,7 @@ var rpcaTestCases = []rpcaTestCase{
 	},
 	{
 		description: "scaling and no diff",
+		skip:        true,
 		timeSeries: buildMatrix([]float64{
 			7714, 6614, 5860, 5039, 3431, 4531, 6063, 5692, 5715, 5951, 5373, 3704,
 			4332, 6011, 5898, 5215, 5454, 4568, 3502, 4460, 6740, 6152, 5678, 5187,
