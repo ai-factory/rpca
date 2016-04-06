@@ -13,8 +13,9 @@ import (
 const MAX_ITERS int = 1000
 
 type Anomalies struct {
-	Positions []bool
-	Values    []float64
+	Positions    []bool
+	Values       []float64
+	NormedValues []float64
 }
 
 func FindAnomalies(series []float64, options ...func(*RPCAConfig) error) Anomalies {
@@ -49,17 +50,19 @@ func FindAnomalies(series []float64, options ...func(*RPCAConfig) error) Anomali
 func decomposedToAnomalies(decomp *decomposedMatrix) Anomalies {
 	anomalyMat := mat64.DenseCopyOf(decomp.S.T())
 	anomalies := anomalyMat.RawMatrix().Data
+	normedAnomalyMat := mat64.DenseCopyOf(decomp.SNormed.T())
+	normedAnomalies := normedAnomalyMat.RawMatrix().Data
 	positions := make([]bool, len(anomalies))
 	for i, v := range anomalies {
 		positions[i] = v != 0
 	}
-	return Anomalies{positions, anomalies}
+	return Anomalies{positions, anomalies, normedAnomalies}
 }
 
 type decomposedMatrix struct {
-	L, S, E    rPCAable
-	converged  bool
-	iterations int
+	L, S, SNormed, E rPCAable
+	converged        bool
+	iterations       int
 }
 type rPCAComponent struct {
 	matrix *mat64.Dense
@@ -155,6 +158,7 @@ func computeRPCA(mat rPCAable, conf *RPCAConfig) decomposedMatrix {
 	if iter < MAX_ITERS {
 		converged = true
 	}
+	sNormed := mat64.DenseCopyOf(s)
 	if conf.scale {
 		if conf.verbose {
 			println("Mean, StdDev: ", mean, stdDev)
@@ -168,9 +172,10 @@ func computeRPCA(mat rPCAable, conf *RPCAConfig) decomposedMatrix {
 	if needsDiff || conf.forcediff {
 		l = mat64.NewDense(rows, cols, matrixData(l))
 		s = mat64.NewDense(rows, cols, matrixData(s))
+		sNormed = mat64.NewDense(rows, cols, matrixData(sNormed))
 		e = mat64.NewDense(rows, cols, matrixData(e))
 	}
-	return decomposedMatrix{l, s, e, converged, iter}
+	return decomposedMatrix{l, s, sNormed, e, converged, iter}
 }
 
 func computeDynamicMu(e *mat64.Dense) float64 {
