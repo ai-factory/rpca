@@ -7,7 +7,7 @@ import (
 )
 
 func fmtMat(mat mat64.Matrix) fmt.Formatter {
-	return mat64.Formatted(mat, mat64.Excerpt(2), mat64.Squeeze())
+	return mat64.Formatted(mat, mat64.Squeeze())
 }
 
 func TestComputeRPCA(t *testing.T) {

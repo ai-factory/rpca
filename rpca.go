@@ -128,8 +128,8 @@ func computeRPCA(mat rPCAable, conf *RPCAConfig) decomposedMatrix {
 		thisSPenalty := mu * conf.sPenalty
 
 		if conf.verbose {
-			println("S penalty:", thisSPenalty)
-			println("L penalty:", thisLPenalty)
+			println("S penalty (", conf.sPenalty, ") with mu ", mu, ":", thisSPenalty)
+			println("L penalty with mu ", mu, ":", thisLPenalty)
 		}
 
 		sComp := computeS(mat, l, thisSPenalty)
@@ -148,7 +148,7 @@ func computeRPCA(mat rPCAable, conf *RPCAConfig) decomposedMatrix {
 			println("L S E norms:", lComp.norm, sComp.norm, eComp.norm)
 			println("Objective function: ", previousObjective, " on previous iteration ", iter)
 			println("Objective function: ", objective, " on iteration ", iter-1)
-			println("Mu on iteration ", iter, ": ", mu)
+			println("Mu after iteration ", iter, ": ", mu, "\n")
 		}
 		iter++
 	}
@@ -163,6 +163,12 @@ func computeRPCA(mat rPCAable, conf *RPCAConfig) decomposedMatrix {
 		add(l, mean)
 		s.Scale(stdDev, s)
 		e.Scale(stdDev, e)
+	}
+	// Not sure why this is required, but it is.
+	if needsDiff || conf.forcediff {
+		l = mat64.NewDense(rows, cols, matrixData(l))
+		s = mat64.NewDense(rows, cols, matrixData(s))
+		e = mat64.NewDense(rows, cols, matrixData(e))
 	}
 	return decomposedMatrix{l, s, e, converged, iter}
 }
