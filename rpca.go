@@ -1,3 +1,11 @@
+/*
+Package rpca implements anomaly detection using Robust Principle Component
+Analysis
+(http://techblog.netflix.com/2015/02/rad-outlier-detection-on-big-data.html).
+It is a port of RPCA provided by Netflix as part of their Surus project
+(https://github.com/Netflix/Surus). It takes bits and pieces of Netflix's RAD
+implementations written in R, C++, Java, and Javascript.
+*/
 package rpca
 
 import (
@@ -10,16 +18,45 @@ import (
 	"math"
 )
 
+// The maximum number of iterations before we give up trying to converge.
 const MAX_ITERS int = 1000
 
 type Anomalies struct {
-	Positions    []bool
-	Values       []float64
+	// A slice of booleans indicating which values in the provided time series
+	// were anomalous.
+	Positions []bool
+
+	// Values is a slice of floats indicating exactly how anomlous each point in
+	// the provided time series was. Points that were not anomalous have a value
+	// of zero. Points that were anomalously low have negative values, while
+	// points that were anomalously high have positive values.
+	Values []float64
+
+	// Part of the RPCA process requires normalizing the given time series by
+	// subtracting the mean and dividing by the standard deviation (Z scoring)
+	// before detecting anomalies. The anomalousness of each point is computed in
+	// this Z-scored space before being transformed back into the domain of the
+	// given time series. Sometimes, it's useful to have the normalized values,
+	// for example, when comparing anomalies across time series.
 	NormedValues []float64
 }
 
-func FindAnomalies(series []float64, options ...func(*RPCAConfig) error) Anomalies {
-	conf := RPCAConfig{
+/*
+FindAnomalies is the primary function to use when using this package. It takes
+a slice of floats and any number of options. Passing options may look a little
+funny. This is because this package uses functional arguments to make the API
+easier to use (more on functional arguments here:
+http://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis).
+Basically, all options have default values, and to change that value, pass
+options like so:
+
+	anoms := rpca.FindAnomalies(series, rpca.Frequency(7), rpca.AutoDiff(true))
+
+The interface is designed to match that of Netflix's anomaly detection
+R package.
+*/
+func FindAnomalies(series []float64, options ...func(*rpcaConfig) error) Anomalies {
+	conf := rpcaConfig{
 		frequency: 7,
 		autodiff:  true,
 		forcediff: false,
@@ -74,7 +111,7 @@ type rPCAable interface {
 	Scale(f float64, a mat64.Matrix)
 }
 
-func computeRPCA(mat rPCAable, conf *RPCAConfig) decomposedMatrix {
+func computeRPCA(mat rPCAable, conf *rpcaConfig) decomposedMatrix {
 	var mean, stdDev float64
 	rows, cols := mat.Dims()
 	needsDiff := false

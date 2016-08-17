@@ -5,7 +5,7 @@ import "github.com/gonum/matrix/mat64"
 type rpcaTestCase struct {
 	skip        bool
 	timeSeries  rPCAable
-	options     *RPCAConfig
+	options     *rpcaConfig
 	description string
 	expected    decomposedMatrix
 }
@@ -26,7 +26,7 @@ var rpcaTestCases = []rpcaTestCase{
 			4372, 3234, 3290, 4583, 5851, 5422, 4908, 4319, 3157, 3479, 5120, 5055,
 			4743, 5563, 4724, 3124, 4500, 5697, 5003, 4644, 5802, 4210, 3347, 3546,
 			4633, 4636, 4607, 4388, 3812, 2810, 2969, 4359}, 7),
-		options: &RPCAConfig{
+		options: &rpcaConfig{
 			frequency: 7,
 			autodiff:  true,
 			forcediff: false,
@@ -107,7 +107,7 @@ var rpcaTestCases = []rpcaTestCase{
 			4372, 3234, 3290, 4583, 5851, 5422, 4908, 4319, 3157, 3479, 5120, 5055,
 			4743, 5563, 4724, 3124, 4500, 5697, 5003, 4644, 5802, 4210, 3347, 3546,
 			4633, 4636, 4607, 4388, 3812, 2810, 2969, 4359}, 7),
-		options: &RPCAConfig{
+		options: &rpcaConfig{
 			frequency: 7,
 			autodiff:  false,
 			forcediff: false,
@@ -218,7 +218,7 @@ var rpcaTestCases = []rpcaTestCase{
 			4372, 3234, 3290, 4583, 5851, 5422, 4908, 4319, 3157, 3479, 5120, 5055,
 			4743, 5563, 4724, 3124, 4500, 5697, 5003, 4644, 5802, 4210, 3347, 3546,
 			4633, 4636, 4607, 4388, 3812, 2810, 2969, 4359}, 7),
-		options: &RPCAConfig{
+		options: &rpcaConfig{
 			frequency: 7,
 			autodiff:  false,
 			forcediff: false,
